@@ -1,0 +1,27 @@
+@import "tailwindcss";
+#range::-webkit-slider-thumb{
+  appearance: none;
+  background-color: #BE185D;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+#range::-webkit-moz-thumb{
+  appearance: none;
+  background-color: #BE185D;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+/* Add smooth transitions for the notification */
+.now-playing-notification {
+  transition: all 0.3s ease;
+  transform: translateY(0);
+}
+
+.now-playing-notification.hidden {
+  transform: translateY(100px);
+  opacity: 0;
+}
