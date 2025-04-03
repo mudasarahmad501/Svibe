@@ -39,6 +39,7 @@ function Home() {
     const [currentPage, setCurrentPage] = useState(1);
     const songsPerPage = 10;
     const [showPlaylistDropdown, setShowPlaylistDropdown] = useState(null);
+    const [isChangingSong, setIsChangingSong] = useState(false);
 
     useEffect(() => {
         const newPage = Math.floor(index / songsPerPage) + 1;
@@ -60,22 +61,37 @@ function Home() {
 
     const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
-    const playSelectedSong = (songIndex) => {
+    const playSelectedSong = async (songIndex) => {
         const actualIndex = indexOfFirstSong + songIndex;
         
-        if (actualIndex !== index) {
-            setIndex(actualIndex);
-            seekSong(0);
-            PlaySong();
-        } else {
-            if (isPlaying) {
-                PauseSong();
-            } else {
-                if (previewEnded) {
-                    seekSong(0);
-                }
+        try {
+            setIsChangingSong(true);
+            
+            if (actualIndex !== index) {
+                // If changing to a different song
+                PauseSong(); // Pause current song first
+                setIndex(actualIndex);
+                seekSong(0);
+                
+                // Small delay to allow state to update
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
                 PlaySong();
+            } else {
+                // If same song, just toggle play/pause
+                if (isPlaying) {
+                    PauseSong();
+                } else {
+                    if (previewEnded) {
+                        seekSong(0);
+                    }
+                    PlaySong();
+                }
             }
+        } catch (err) {
+            console.error("Playback error:", err);
+        } finally {
+            setIsChangingSong(false);
         }
     };
 
@@ -174,13 +190,18 @@ function Home() {
                             <MdSkipPrevious 
                                 className='text-2xl hover:text-pink-700 cursor-pointer'
                                 onClick={prevSong}
+                                disabled={isChangingSong}
                             />
-                            <div className='cursor-pointer w-[50px] h-[50px] bg-amber-100 text-pink-700 hover:bg-white flex justify-center items-center rounded-full'>
-                                {!isPlaying ? <FaPlay onClick={PlaySong} /> : <FaPause onClick={PauseSong} />}
+                            <div className={`cursor-pointer w-[50px] h-[50px] bg-amber-100 text-pink-700 hover:bg-white flex justify-center items-center rounded-full ${isChangingSong ? 'opacity-50' : ''}`}>
+                                {!isPlaying ? 
+                                    <FaPlay onClick={isChangingSong ? null : PlaySong} /> : 
+                                    <FaPause onClick={isChangingSong ? null : PauseSong} />
+                                }
                             </div>
                             <MdSkipNext 
                                 className='text-2xl hover:text-pink-700 cursor-pointer'
                                 onClick={nextSong}
+                                disabled={isChangingSong}
                             />
                         </div>
                         <div className='text-xs text-amber-100'>
@@ -203,8 +224,8 @@ function Home() {
                             return (
                                 <div 
                                     key={song.id} 
-                                    className={`flex items-center p-3 rounded-lg cursor-pointer ${isCurrentSong ? 'bg-amber-100' : 'bg-white hover:bg-gray-100'}`}
-                                    onClick={() => playSelectedSong(i)}
+                                    className={`flex items-center p-3 rounded-lg cursor-pointer ${isCurrentSong ? 'bg-amber-100' : 'bg-white hover:bg-gray-100'} ${isChangingSong && isCurrentSong ? 'opacity-70' : ''}`}
+                                    onClick={() => !isChangingSong && playSelectedSong(i)}
                                 >
                                     <img 
                                         src={song.album?.cover_small || musicImg} 
@@ -221,7 +242,7 @@ function Home() {
                                     </div>
                                     <div className='flex items-center gap-2 ml-2'>
                                         <div 
-                                            onClick={(e) => handleLike(song.id, e)}
+                                            onClick={(e) => !isChangingSong && handleLike(song.id, e)}
                                             className='text-lg hover:scale-110'
                                         >
                                             {isLiked ? <FaHeart className='text-red-500' /> : <FaRegHeart className='text-gray-500' />}
@@ -239,7 +260,7 @@ function Home() {
                                             </div>
                                             
                                             {showPlaylistDropdown === song.id && (
-                                                <div className='absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg'>
+                                                <div className='absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg z-10'>
                                                     <div className='p-2 border-b'>
                                                         <span className='text-xs font-semibold text-gray-700'>Add to playlist</span>
                                                     </div>
@@ -284,8 +305,8 @@ function Home() {
                         <div className='flex justify-center mt-4'>
                             <nav className='flex items-center gap-1'>
                                 <button 
-                                    onClick={() => paginate(Math.max(1, currentPage - 1))}
-                                    disabled={currentPage === 1}
+                                    onClick={() => !isChangingSong && paginate(Math.max(1, currentPage - 1))}
+                                    disabled={currentPage === 1 || isChangingSong}
                                     className='px-3 py-1 rounded-md text-sm bg-white disabled:opacity-50'
                                 >
                                     Prev
@@ -306,8 +327,9 @@ function Home() {
                                     return (
                                         <button
                                             key={pageNumber}
-                                            onClick={() => paginate(pageNumber)}
-                                            className={`px-3 py-1 rounded-md text-sm ${currentPage === pageNumber ? 'bg-amber-100 text-gray-800 font-medium' : 'bg-white'}`}
+                                            onClick={() => !isChangingSong && paginate(pageNumber)}
+                                            className={`px-3 py-1 rounded-md text-sm ${currentPage === pageNumber ? 'bg-amber-100 text-gray-800 font-medium' : 'bg-white'} ${isChangingSong ? 'opacity-50' : ''}`}
+                                            disabled={isChangingSong}
                                         >
                                             {pageNumber}
                                         </button>
@@ -315,8 +337,8 @@ function Home() {
                                 })}
                                 
                                 <button 
-                                    onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
-                                    disabled={currentPage === totalPages}
+                                    onClick={() => !isChangingSong && paginate(Math.min(totalPages, currentPage + 1))}
+                                    disabled={currentPage === totalPages || isChangingSong}
                                     className='px-3 py-1 rounded-md text-sm bg-white disabled:opacity-50'
                                 >
                                     Next
@@ -384,13 +406,18 @@ function Home() {
                             <MdSkipPrevious 
                                 className='text-2xl hover:text-pink-700 cursor-pointer'
                                 onClick={prevSong}
+                                disabled={isChangingSong}
                             />
-                            <div className='cursor-pointer w-[50px] h-[50px] bg-amber-100 text-pink-700 hover:bg-white flex justify-center items-center rounded-full'>
-                                {!isPlaying ? <FaPlay onClick={PlaySong} /> : <FaPause onClick={PauseSong} />}
+                            <div className={`cursor-pointer w-[50px] h-[50px] bg-amber-100 text-pink-700 hover:bg-white flex justify-center items-center rounded-full ${isChangingSong ? 'opacity-50' : ''}`}>
+                                {!isPlaying ? 
+                                    <FaPlay onClick={isChangingSong ? null : PlaySong} /> : 
+                                    <FaPause onClick={isChangingSong ? null : PauseSong} />
+                                }
                             </div>
                             <MdSkipNext 
                                 className='text-2xl hover:text-pink-700 cursor-pointer'
                                 onClick={nextSong}
+                                disabled={isChangingSong}
                             />
                         </div>
                         <div className='text-xs text-amber-100'>
@@ -406,137 +433,138 @@ function Home() {
                 {/* Song List Section - Bottom (Always visible on mobile) */}
                 <div className='w-full p-4 pb-[60px]'>
                     <div className=''>
-                            <h2 className='text-xl font-bold mb-4 text-white'>Song List</h2>
+                        <h2 className='text-xl font-bold mb-4 text-white'>Song List</h2>
                     
-                    <div className='grid grid-cols-1 gap-3'>
-                        {currentSongs.map((song, i) => {
-                            const isCurrentSong = index === indexOfFirstSong + i;
-                            const isLiked = likedSongs.includes(song.id);
-                            
-                            return (
-                                <div 
-                                    key={song.id} 
-                                    className={`flex items-center p-3 rounded-lg cursor-pointer ${isCurrentSong ? 'bg-amber-100' : 'bg-white hover:bg-gray-100'}`}
-                                    onClick={() => playSelectedSong(i)}
-                                >
-                                    <img 
-                                        src={song.album?.cover_small || musicImg} 
-                                        alt={song.title} 
-                                        className="w-12 h-12 rounded-md object-cover mr-3"
-                                    />
-                                    <div className='flex-1 min-w-0'>
-                                        <h3 className={`text-sm font-medium truncate ${isCurrentSong ? 'text-gray-800' : 'text-gray-800'}`}>
-                                            {song.title}
-                                        </h3>
-                                        <p className={`text-xs truncate ${isCurrentSong ? 'text-gray-700' : 'text-gray-600'}`}>
-                                            {song.artist?.name || 'Unknown Artist'}
-                                        </p>
-                                    </div>
-                                    <div className='flex items-center gap-2 ml-2'>
-                                        <div 
-                                            onClick={(e) => handleLike(song.id, e)}
-                                            className='text-lg hover:scale-110'
-                                        >
-                                            {isLiked ? <FaHeart className='text-red-500' /> : <FaRegHeart className='text-gray-500' />}
+                        <div className='grid grid-cols-1 gap-3'>
+                            {currentSongs.map((song, i) => {
+                                const isCurrentSong = index === indexOfFirstSong + i;
+                                const isLiked = likedSongs.includes(song.id);
+                                
+                                return (
+                                    <div 
+                                        key={song.id} 
+                                        className={`flex items-center p-3 rounded-lg cursor-pointer ${isCurrentSong ? 'bg-amber-100' : 'bg-white hover:bg-gray-100'} ${isChangingSong && isCurrentSong ? 'opacity-70' : ''}`}
+                                        onClick={() => !isChangingSong && playSelectedSong(i)}
+                                    >
+                                        <img 
+                                            src={song.album?.cover_small || musicImg} 
+                                            alt={song.title} 
+                                            className="w-12 h-12 rounded-md object-cover mr-3"
+                                        />
+                                        <div className='flex-1 min-w-0'>
+                                            <h3 className={`text-sm font-medium truncate ${isCurrentSong ? 'text-gray-800' : 'text-gray-800'}`}>
+                                                {song.title}
+                                            </h3>
+                                            <p className={`text-xs truncate ${isCurrentSong ? 'text-gray-700' : 'text-gray-600'}`}>
+                                                {song.artist?.name || 'Unknown Artist'}
+                                            </p>
                                         </div>
-                                        
-                                        <div className='relative'>
+                                        <div className='flex items-center gap-2 ml-2'>
                                             <div 
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setShowPlaylistDropdown(showPlaylistDropdown === song.id ? null : song.id);
-                                                }}
+                                                onClick={(e) => !isChangingSong && handleLike(song.id, e)}
                                                 className='text-lg hover:scale-110'
                                             >
-                                                <FaList className='text-gray-500' />
+                                                {isLiked ? <FaHeart className='text-red-500' /> : <FaRegHeart className='text-gray-500' />}
                                             </div>
                                             
-                                            {showPlaylistDropdown === song.id && (
-                                                <div className='absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg z-10'>
-                                                    <div className='p-2 border-b'>
-                                                        <span className='text-xs font-semibold text-gray-700'>Add to playlist</span>
-                                                    </div>
-                                                    <div className='max-h-40 overflow-y-auto'>
-                                                        {Object.keys(playlists)
-                                                            .filter(name => name !== 'Favorites')
-                                                            .map(playlistName => (
-                                                                <div 
-                                                                    key={playlistName}
-                                                                    onClick={(e) => handleAddToPlaylist(song.id, playlistName, e)}
-                                                                    className='px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer flex justify-between items-center'
-                                                                >
-                                                                    <span>{playlistName}</span>
-                                                                    {playlists[playlistName]?.includes(song.id) && (
-                                                                        <span className='text-xs text-green-500'>✓</span>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                    </div>
-                                                    <div 
-                                                        onClick={(e) => handleCreatePlaylist(song.id, e)}
-                                                        className='px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer text-blue-500 border-t'
-                                                    >
-                                                        + Create new playlist
-                                                    </div>
+                                            <div className='relative'>
+                                                <div 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setShowPlaylistDropdown(showPlaylistDropdown === song.id ? null : song.id);
+                                                    }}
+                                                    className='text-lg hover:scale-110'
+                                                >
+                                                    <FaList className='text-gray-500' />
                                                 </div>
+                                                
+                                                {showPlaylistDropdown === song.id && (
+                                                    <div className='absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg z-10'>
+                                                        <div className='p-2 border-b'>
+                                                            <span className='text-xs font-semibold text-gray-700'>Add to playlist</span>
+                                                        </div>
+                                                        <div className='max-h-40 overflow-y-auto'>
+                                                            {Object.keys(playlists)
+                                                                .filter(name => name !== 'Favorites')
+                                                                .map(playlistName => (
+                                                                    <div 
+                                                                        key={playlistName}
+                                                                        onClick={(e) => handleAddToPlaylist(song.id, playlistName, e)}
+                                                                        className='px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer flex justify-between items-center'
+                                                                    >
+                                                                        <span>{playlistName}</span>
+                                                                        {playlists[playlistName]?.includes(song.id) && (
+                                                                            <span className='text-xs text-green-500'>✓</span>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                        </div>
+                                                        <div 
+                                                            onClick={(e) => handleCreatePlaylist(song.id, e)}
+                                                            className='px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer text-blue-500 border-t'
+                                                        >
+                                                            + Create new playlist
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {isCurrentSong && isPlaying ? (
+                                                <FaPause className='text-gray-700' />
+                                            ) : (
+                                                <FaPlay className='text-gray-700' />
                                             )}
                                         </div>
-                                        
-                                        {isCurrentSong && isPlaying ? (
-                                            <FaPause className='text-gray-700' />
-                                        ) : (
-                                            <FaPlay className='text-gray-700' />
-                                        )}
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    
-                    {totalPages > 1 && (
-                        <div className='flex justify-center mt-4'>
-                            <nav className='flex items-center gap-1'>
-                                <button 
-                                    onClick={() => paginate(Math.max(1, currentPage - 1))}
-                                    disabled={currentPage === 1}
-                                    className='px-3 py-1 rounded-md text-sm bg-white disabled:opacity-50'
-                                >
-                                    Prev
-                                </button>
-                                
-                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                    let pageNumber;
-                                    if (totalPages <= 5) {
-                                        pageNumber = i + 1;
-                                    } else if (currentPage <= 3) {
-                                        pageNumber = i + 1;
-                                    } else if (currentPage >= totalPages - 2) {
-                                        pageNumber = totalPages - 4 + i;
-                                    } else {
-                                        pageNumber = currentPage - 2 + i;
-                                    }
-                                    
-                                    return (
-                                        <button
-                                            key={pageNumber}
-                                            onClick={() => paginate(pageNumber)}
-                                            className={`px-3 py-1 rounded-md text-sm ${currentPage === pageNumber ? 'bg-amber-100 text-gray-800 font-medium' : 'bg-white'}`}
-                                        >
-                                            {pageNumber}
-                                        </button>
-                                    );
-                                })}
-                                
-                                <button 
-                                    onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
-                                    disabled={currentPage === totalPages}
-                                    className='px-3 py-1 rounded-md text-sm bg-white disabled:opacity-50'
-                                >
-                                    Next
-                                </button>
-                            </nav>
+                                );
+                            })}
                         </div>
-                    )}
+                        
+                        {totalPages > 1 && (
+                            <div className='flex justify-center mt-4'>
+                                <nav className='flex items-center gap-1'>
+                                    <button 
+                                        onClick={() => !isChangingSong && paginate(Math.max(1, currentPage - 1))}
+                                        disabled={currentPage === 1 || isChangingSong}
+                                        className='px-3 py-1 rounded-md text-sm bg-white disabled:opacity-50'
+                                    >
+                                        Prev
+                                    </button>
+                                    
+                                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                        let pageNumber;
+                                        if (totalPages <= 5) {
+                                            pageNumber = i + 1;
+                                        } else if (currentPage <= 3) {
+                                            pageNumber = i + 1;
+                                        } else if (currentPage >= totalPages - 2) {
+                                            pageNumber = totalPages - 4 + i;
+                                        } else {
+                                            pageNumber = currentPage - 2 + i;
+                                        }
+                                        
+                                        return (
+                                            <button
+                                                key={pageNumber}
+                                                onClick={() => !isChangingSong && paginate(pageNumber)}
+                                                className={`px-3 py-1 rounded-md text-sm ${currentPage === pageNumber ? 'bg-amber-100 text-gray-800 font-medium' : 'bg-white'} ${isChangingSong ? 'opacity-50' : ''}`}
+                                                disabled={isChangingSong}
+                                            >
+                                                {pageNumber}
+                                            </button>
+                                        );
+                                    })}
+                                    
+                                    <button 
+                                        onClick={() => !isChangingSong && paginate(Math.min(totalPages, currentPage + 1))}
+                                        disabled={currentPage === totalPages || isChangingSong}
+                                        className='px-3 py-1 rounded-md text-sm bg-white disabled:opacity-50'
+                                    >
+                                        Next
+                                    </button>
+                                </nav>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
